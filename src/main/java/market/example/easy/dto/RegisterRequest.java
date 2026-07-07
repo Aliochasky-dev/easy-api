@@ -7,21 +7,22 @@ import lombok.Data;
 
 @Data
 public class RegisterRequest {
-    @NotBlank(message = "le nom complet est obligatoire")
+
+    @NotBlank(message = "Le nom complet est obligatoire")
     private String fullName;
 
-    @NotBlank(message="le numero de telephone est obligatoire")
-    @Size(min = 9,max = 15 ,message ="le numero de telephone doit etre valider")
+    @NotBlank(message = "Le numéro de téléphone est obligatoire")
+    @Size(min = 9, max = 15, message = "Le numéro de téléphone doit avoir entre 9 et 15 caractères")
     private String phoneNumber;
 
-    @NotBlank(message = "l'email est obligatoire ")
-    @Email(message = "format d'email invalide")
+    @NotBlank(message = "L'email est obligatoire")
+    @Email(message = "Format d'email invalide")
     private String email;
 
-    @NotBlank(message="le mot de passe est obligatoire")
-    @Size(min=10,message = "le mot de passe doit contenir au moins 6 lettres")
+    @NotBlank(message = "Le mot de passe est obligatoire")
+    @Size(min = 6, message = "Le mot de passe doit contenir au moins 6 caractères")
     private String password;
 
-    @NotBlank(message="la confirmation de mot de passe est obligatoire")
+    @NotBlank(message = "La confirmation du mot de passe est obligatoire")
     private String confirmPassword;
 }
