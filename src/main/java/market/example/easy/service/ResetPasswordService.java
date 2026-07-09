@@ -5,6 +5,7 @@ import market.example.easy.model.User;
 import market.example.easy.repository.ResetTokenRepository;
 import market.example.easy.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
