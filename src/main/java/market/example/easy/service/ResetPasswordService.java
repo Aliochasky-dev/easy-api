@@ -21,6 +21,12 @@ public class ResetPasswordService {
     @Autowired private ResetTokenRepository resetTokenRepository;
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private JavaMailSender mailSender;
+    
+    @Value("${app.frontend.url:http://localhost:8080}")
+    private String frontendUrl;
+    
+    @Value("${spring.mail.from:noreply@easy-api.com}")
+    private String mailFrom;
 
     public void sendResetToken(String email) {
         // ← .trim() pour éviter les espaces dans l'email
@@ -34,12 +40,13 @@ public class ResetPasswordService {
         resetTokenRepository.save(resetToken);
 
         SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(mailFrom);
         message.setTo(cleanEmail);
         message.setSubject("Réinitialisation de mot de passe - VISION");
         message.setText(
                 "Bonjour,\n\n" +
                         "Cliquez sur ce lien pour réinitialiser votre mot de passe :\n" +
-                        "http://localhost:8080/reset-password?token=" + token + "\n\n" +
+                        frontendUrl + "/reset-password?token=" + token + "\n\n" +
                         "Ce lien expire dans 1 heure.\n\n" +
                         "Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\n" +
                         "L'équipe VISION"
