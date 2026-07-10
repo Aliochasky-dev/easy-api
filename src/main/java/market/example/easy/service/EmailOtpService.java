@@ -1,14 +1,23 @@
 package market.example.easy.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +28,12 @@ public class EmailOtpService {
 
     @Value("${spring.mail.username}")
     private String fromEmail;
+
+    @Value("${spring.mail.from:noreply@easy-api.com}")
+    private String mailFrom;
+
+    @Value("${SENDGRID_API_KEY:}")
+    private String sendGridApiKey;
 
     private static final int OTP_LENGTH = 6;
     private static final Duration OTP_EXPIRY = Duration.ofMinutes(10);
@@ -36,7 +51,7 @@ public class EmailOtpService {
         // Envoi de l'email
         sendOtpEmail(email, otp);
 
-        System.out.println("📧 OTP envoyé par email à " + email + " → " + otp);
+        System.out.println("📧 OTP généré pour " + email + " → " + otp);
 
         return otp; // Pour test seulement
     }
@@ -61,29 +76,60 @@ public class EmailOtpService {
     }
 
     /**
-     * Envoi de l'email OTP
+     * Envoi de l'email OTP — utilise SendGrid API si SENDGRID_API_KEY est fourni, sinon fallback SMTP
      */
     public void sendOtpEmail(String toEmail, String otp) {
+        String emailBody = "Bonjour,\n\n" +
+                "Votre code OTP pour VISION est : " + otp + "\n\n" +
+                "Ce code est valable pendant 10 minutes.\n\n" +
+                "Cordialement,\n" +
+                "L'équipe VISION";
+
+        // Try SendGrid API first when key is present
+        if (StringUtils.hasText(sendGridApiKey)) {
+            try {
+                Map<String, Object> emailPayload = new LinkedHashMap<>();
+                emailPayload.put("personalizations", Arrays.asList(
+                        Map.of("to", Arrays.asList(Map.of("email", toEmail)))
+                ));
+                emailPayload.put("from", Map.of("email", mailFrom));
+                emailPayload.put("subject", "Votre code de vérification VISION");
+                emailPayload.put("content", Arrays.asList(
+                        Map.of("type", "text/plain", "value", emailBody)
+                ));
+
+                RestTemplate restTemplate = new RestTemplate();
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+                headers.set("Authorization", "Bearer " + sendGridApiKey);
+
+                ObjectMapper mapper = new ObjectMapper();
+                String jsonPayload = mapper.writeValueAsString(emailPayload);
+                HttpEntity<String> request = new HttpEntity<>(jsonPayload, headers);
+
+                restTemplate.postForObject("https://api.sendgrid.com/v3/mail/send", request, String.class);
+
+                System.out.println("OTP envoyé via SendGrid à " + toEmail);
+                return;
+            } catch (Exception e) {
+                System.err.println("Envoi via SendGrid échoué: " + e.getMessage());
+                // fallback to SMTP
+            }
+        }
+
+        // Fallback to JavaMailSender (SMTP)
         try {
             SimpleMailMessage message = new SimpleMailMessage();
             message.setFrom(fromEmail);
             message.setTo(toEmail);
             message.setSubject("Votre code de vérification VISION");
-            message.setText("""
-                Bonjour,
-
-                Votre code OTP pour VISION est : %s
-
-                Ce code est valable pendant 10 minutes.
-
-                Cordialement,
-                L'équipe VISION
-                """.formatted(otp));
+            message.setText(emailBody);
 
             mailSender.send(message);
+            System.out.println("OTP envoyé via SMTP à " + toEmail);
         } catch (Exception e) {
             System.err.println("Erreur lors de l'envoi de l'email OTP : " + e.getMessage());
-            throw new RuntimeException("Impossible d'envoyer l'email OTP");
+            throw new RuntimeException("Impossible d'envoyer l'email OTP", e);
         }
     }
 

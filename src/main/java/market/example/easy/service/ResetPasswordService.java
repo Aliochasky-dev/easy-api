@@ -1,20 +1,22 @@
 package market.example.easy.service;
 
-import com.sendgrid.SendGrid;
-import com.sendgrid.helpers.mail.Mail;
-import com.sendgrid.helpers.mail.Email;
-import com.sendgrid.helpers.mail.Content;
 import market.example.easy.Entity.ResetToken;
 import market.example.easy.model.User;
 import market.example.easy.repository.ResetTokenRepository;
 import market.example.easy.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.*;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class ResetPasswordService {
@@ -44,33 +46,42 @@ public class ResetPasswordService {
         resetTokenRepository.save(resetToken);
 
         try {
-            SendGrid sg = new SendGrid(sendGridApiKey);
-            
-            Email from = new Email(mailFrom);
-            Email to = new Email(cleanEmail);
-            String subject = "Réinitialisation de mot de passe - VISION";
             String resetLink = frontendUrl + "/reset-password?token=" + token;
-            Content content = new Content("text/plain",
-                    "Bonjour,\n\n" +
+            String emailBody = "Bonjour,\n\n" +
                     "Cliquez sur ce lien pour réinitialiser votre mot de passe :\n" +
                     resetLink + "\n\n" +
                     "Ce lien expire dans 1 heure.\n\n" +
                     "Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\n" +
-                    "L'équipe VISION"
-            );
-            
-            Mail mail = new Mail(from, subject, to, content);
-            com.sendgrid.Request request = new com.sendgrid.Request();
-            request.setMethod(com.sendgrid.Request.Method.POST);
-            request.setEndpoint("mail/send");
-            request.setBody(mail.build());
-            
-            sg.api(request);
-            
+                    "L'équipe VISION";
+
+            // Construire le payload JSON pour SendGrid
+            Map<String, Object> emailPayload = new LinkedHashMap<>();
+            emailPayload.put("personalizations", Arrays.asList(
+                    Map.of("to", Arrays.asList(Map.of("email", cleanEmail)))
+            ));
+            emailPayload.put("from", Map.of("email", mailFrom));
+            emailPayload.put("subject", "Réinitialisation de mot de passe - VISION");
+            emailPayload.put("content", Arrays.asList(
+                    Map.of("type", "text/plain", "value", emailBody)
+            ));
+
+            // Appeler l'API SendGrid
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + sendGridApiKey);
+
+            ObjectMapper mapper = new ObjectMapper();
+            String jsonPayload = mapper.writeValueAsString(emailPayload);
+            HttpEntity<String> request = new HttpEntity<>(jsonPayload, headers);
+
+            restTemplate.postForObject("https://api.sendgrid.com/v3/mail/send", request, String.class);
+
             System.out.println("=====================================");
             System.out.println("EMAIL : " + cleanEmail);
             System.out.println("TOKEN GÉNÉRÉ : " + token);
             System.out.println("LIEN : " + resetLink);
+            System.out.println("Email envoyé avec succès !");
             System.out.println("=====================================");
         } catch (Exception e) {
             System.err.println("Erreur lors de l'envoi de l'email : " + e.getMessage());
