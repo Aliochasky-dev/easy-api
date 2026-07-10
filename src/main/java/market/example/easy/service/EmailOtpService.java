@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,11 +21,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class EmailOtpService {
 
-    private final JavaMailSender mailSender;
     private final RedisTemplate<String, String> redisTemplate;
-
-    @Value("${spring.mail.username}")
-    private String fromEmail;
 
     @Value("${spring.mail.from:noreply@easy-api.com}")
     private String mailFrom;
@@ -39,7 +33,7 @@ public class EmailOtpService {
     private static final Duration OTP_EXPIRY = Duration.ofMinutes(10);
 
     /**
-     * Génère un OTP et l'envoie par email
+     * Génère un OTP et l'envoie par email via SendGrid API (obligatoire)
      */
     public String generateAndSendOtp(String email) {
         String otp = generateOtp();
@@ -76,60 +70,45 @@ public class EmailOtpService {
     }
 
     /**
-     * Envoi de l'email OTP — utilise SendGrid API si SENDGRID_API_KEY est fourni, sinon fallback SMTP
+     * Envoi de l'email OTP via SendGrid API (REQUIS). Si SENDGRID_API_KEY manquant, l'envoi échoue avec message explicite.
      */
     public void sendOtpEmail(String toEmail, String otp) {
+        if (!StringUtils.hasText(sendGridApiKey)) {
+            throw new RuntimeException("SENDGRID_API_KEY non configuré. Configurez la variable d'environnement SENDGRID_API_KEY pour activer l'envoi d'emails via SendGrid.");
+        }
+
         String emailBody = "Bonjour,\n\n" +
                 "Votre code OTP pour VISION est : " + otp + "\n\n" +
                 "Ce code est valable pendant 10 minutes.\n\n" +
                 "Cordialement,\n" +
                 "L'équipe VISION";
 
-        // Try SendGrid API first when key is present
-        if (StringUtils.hasText(sendGridApiKey)) {
-            try {
-                Map<String, Object> emailPayload = new LinkedHashMap<>();
-                emailPayload.put("personalizations", Arrays.asList(
-                        Map.of("to", Arrays.asList(Map.of("email", toEmail)))
-                ));
-                emailPayload.put("from", Map.of("email", mailFrom));
-                emailPayload.put("subject", "Votre code de vérification VISION");
-                emailPayload.put("content", Arrays.asList(
-                        Map.of("type", "text/plain", "value", emailBody)
-                ));
-
-                RestTemplate restTemplate = new RestTemplate();
-                HttpHeaders headers = new HttpHeaders();
-                headers.setContentType(MediaType.APPLICATION_JSON);
-                headers.set("Authorization", "Bearer " + sendGridApiKey);
-
-                ObjectMapper mapper = new ObjectMapper();
-                String jsonPayload = mapper.writeValueAsString(emailPayload);
-                HttpEntity<String> request = new HttpEntity<>(jsonPayload, headers);
-
-                restTemplate.postForObject("https://api.sendgrid.com/v3/mail/send", request, String.class);
-
-                System.out.println("OTP envoyé via SendGrid à " + toEmail);
-                return;
-            } catch (Exception e) {
-                System.err.println("Envoi via SendGrid échoué: " + e.getMessage());
-                // fallback to SMTP
-            }
-        }
-
-        // Fallback to JavaMailSender (SMTP)
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(toEmail);
-            message.setSubject("Votre code de vérification VISION");
-            message.setText(emailBody);
+            Map<String, Object> emailPayload = new LinkedHashMap<>();
+            emailPayload.put("personalizations", Arrays.asList(
+                    Map.of("to", Arrays.asList(Map.of("email", toEmail)))
+            ));
+            emailPayload.put("from", Map.of("email", mailFrom));
+            emailPayload.put("subject", "Votre code de vérification VISION");
+            emailPayload.put("content", Arrays.asList(
+                    Map.of("type", "text/plain", "value", emailBody)
+            ));
 
-            mailSender.send(message);
-            System.out.println("OTP envoyé via SMTP à " + toEmail);
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + sendGridApiKey);
+
+            ObjectMapper mapper = new ObjectMapper();
+            String jsonPayload = mapper.writeValueAsString(emailPayload);
+            HttpEntity<String> request = new HttpEntity<>(jsonPayload, headers);
+
+            restTemplate.postForObject("https://api.sendgrid.com/v3/mail/send", request, String.class);
+
+            System.out.println("OTP envoyé via SendGrid à " + toEmail);
         } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email OTP : " + e.getMessage());
-            throw new RuntimeException("Impossible d'envoyer l'email OTP", e);
+            System.err.println("Envoi via SendGrid échoué: " + e.getMessage());
+            throw new RuntimeException("Erreur lors de l'envoi de l'email via SendGrid", e);
         }
     }
 
