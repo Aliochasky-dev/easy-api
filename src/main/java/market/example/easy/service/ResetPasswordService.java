@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -44,6 +45,9 @@ public class ResetPasswordService {
         String token = UUID.randomUUID().toString();
         ResetToken resetToken = new ResetToken(token, cleanEmail);
         resetTokenRepository.save(resetToken);
+        if (!StringUtils.hasText(sendGridApiKey)) {
+            throw new RuntimeException("SENDGRID_API_KEY manquante dans les variables Railway");
+        }
 
         try {
             String resetLink = frontendUrl + "/reset-password?token=" + token;
@@ -84,9 +88,12 @@ public class ResetPasswordService {
             System.out.println("Email envoyé avec succès !");
             System.out.println("=====================================");
         } catch (Exception e) {
-            System.err.println("Erreur lors de l'envoi de l'email : " + e.getMessage());
-            throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
-        }
+        System.err.println("=== ERREUR ENVOI EMAIL ===");
+        System.err.println("SENDGRID_API_KEY vide ? " + !StringUtils.hasText(sendGridApiKey));
+        System.err.println("Message: " + e.getMessage());
+        e.printStackTrace();   // pour voir le stack complet
+        throw new RuntimeException("Erreur lors de l'envoi de l'email", e);
+    }
     }
 
     public void resetPassword(String token, String newPassword) {

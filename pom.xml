@@ -91,6 +91,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>com.sendgrid</groupId>
+            <artifactId>sendgrid-java</artifactId>
+            <version>4.9.3</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security-test</artifactId>
             <scope>test</scope>
@@ -98,11 +103,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.sendgrid</groupId>
-            <artifactId>sendgrid-java</artifactId>
-            <version>4.10.1</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
