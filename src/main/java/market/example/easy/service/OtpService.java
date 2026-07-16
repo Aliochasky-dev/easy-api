@@ -12,7 +12,7 @@ import java.time.Duration;
 public class OtpService {
 
     private final RedisTemplate<String, String> redisTemplate;
-    private final EmailOtpService emailOtpService;
+    private final EmailService emailService;
 
     private static final int OTP_LENGTH = 6;
     private static final Duration OTP_EXPIRY = Duration.ofMinutes(10);
@@ -24,7 +24,7 @@ public class OtpService {
         redisTemplate.opsForValue().set(redisKey, otp, OTP_EXPIRY);
 
         // Envoi par email
-        emailOtpService.sendOtpEmail(email, otp);
+        emailService.sendOtpEmail(email, otp);
 
         System.out.println("📧 OTP envoyé par email à " + email + " → " + otp);
 
